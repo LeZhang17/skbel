@@ -182,7 +182,7 @@ class BEL(TransformerMixin, MultiOutputMixin, BaseEstimator):
 
         :param X: Predictor array.
         :param Y: Target array.
-        :return: self
+        :return: self, canonical correlations
         """
 
         if self.x_pre_processed is None:
@@ -202,8 +202,13 @@ class BEL(TransformerMixin, MultiOutputMixin, BaseEstimator):
             else:
                 self.regression_model.n_components = self.n_comp_cca
             _xc, _yc = self.regression_model.fit_transform(X=_xt, y=_yt)  # Learning
+
+            # 新增代码：获取相关性系数
+            canonical_correlations = np.corrcoef(_xc.T, _yc.T).diagonal(offset=self.n_comp_cca)
+
         except ValueError:  # If no CCA
             _xc, _yc = _xt, _yt
+            canonical_correlations = np.array([])
 
         # CV Normalized
         _xf, _yf = (
@@ -213,7 +218,7 @@ class BEL(TransformerMixin, MultiOutputMixin, BaseEstimator):
 
         self.X_f, self.Y_f = _xf, _yf  # At the moment, we have to save these.
 
-        return self
+        return self, canonical_correlations
 
     def transform(self, X=None, Y=None) -> (np.array, np.array):
         """Transform data across all pipelines.
@@ -267,15 +272,16 @@ class BEL(TransformerMixin, MultiOutputMixin, BaseEstimator):
         return self.fit(X, y).transform(X, y)
 
     def predict(
-        self,
-        X_obs: np.array = None,
-        n_posts: int = None,
-        mode: str = None,
-        noise: float = None,
-        return_samples: bool = True,
-        inverse_transform: bool = True,
-        precomputed_kde: np.array = None,
-        dtype: str = "float64",
+            self,
+            X_obs: np.array = None,
+            n_posts: int = None,
+            mode: str = None,
+            noise: float = None,
+            return_samples: bool = True,
+            inverse_transform: bool = True,
+            precomputed_kde: np.array = None,
+            dtype: str = "float64",
+            return_cca: bool = False  # 添加这个参数来控制是否返回CCA空间内的结果
     ) -> np.array:
         """Predict the posterior distribution of the target variable.
 
@@ -290,6 +296,7 @@ class BEL(TransformerMixin, MultiOutputMixin, BaseEstimator):
         :param precomputed_kde: (if mode="kde) Precomputed KDE functions. Computing the KDEs can be time-consuming.
             If the KDEs are precomputed, they can be passed as an argument.
         :param dtype: The data type of the samples. Default=float64.
+        :param return_cca: Option to return the CCA-transformed samples. Default=False.
         :return: The posterior samples in the original space or in the transformed space.
         """
         if mode is not None:  # If mode is provided
@@ -311,6 +318,7 @@ class BEL(TransformerMixin, MultiOutputMixin, BaseEstimator):
             X_obs_pc
         )  # Project observed data into Canonical space.
         X_obs_f = self.X_post_processing.transform(X_obs_c)
+        self.X_obs_c = X_obs_c
         self.X_obs_f = X_obs_f
 
         # Estimate the posterior mean and covariance
@@ -330,7 +338,7 @@ class BEL(TransformerMixin, MultiOutputMixin, BaseEstimator):
                 ].n_components  # Number of PCA components
                 # I matrix. (n_comp_PCA, n_comp_PCA)
                 x_cov = (
-                    np.eye(x_dim) * self.noise
+                        np.eye(x_dim) * self.noise
                 )  # Noise level. We assume that the data is noisy with a given level of noise.
                 # (n_comp_CCA, n_comp_CCA)
                 # Get the rotation matrices
@@ -467,9 +475,20 @@ class BEL(TransformerMixin, MultiOutputMixin, BaseEstimator):
                 init_kde=precomputed_kde,
             )  # Samples from the posterior
             if inverse_transform:
-                return self.inverse_transform(samples, dtype=dtype)  # Inverse transform
+                if return_cca:
+                    return self.inverse_transform(samples, dtype=dtype), X_obs_c, samples
+                else:
+                    return self.inverse_transform(samples, dtype=dtype)
             else:
-                return samples  # Return samples
+                if return_cca:
+                    return samples, X_obs_c, samples
+                else:
+                    return samples
+        else:
+            if return_cca:
+                return X_obs_f, X_obs_c
+            else:
+                return X_obs_f
 
     def random_sample(
         self,
