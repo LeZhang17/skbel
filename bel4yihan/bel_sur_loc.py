@@ -21,12 +21,12 @@ path = os.getcwd()+file
 datasets = pd.read_csv(path, header=0)
 data = np.array(datasets)
 
-# mask = (
-#     (data[:, 1] < 20) |
-#     (data[:, 2] < 20) | (data[:, 2] > 130)
-# )
-#
-# data = data[mask]
+mask = (
+    (data[:, 1] < 20) |
+    (data[:, 2] < 50) | (data[:, 2] > 100)
+)
+
+data = data[mask]
 
 random_indices = np.random.choice(data.shape[0], size=2000, replace=False)
 
@@ -178,3 +178,9 @@ axes[2].legend()
 plt.tight_layout()
 plt.show()
 
+# %%
+i = 5
+plt.hist(X_test[:,i])
+plt.show()
+plt.hist(test[:,i])
+plt.show()

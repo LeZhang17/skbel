@@ -75,7 +75,7 @@ plt.show()
 # %%
 random_index = np.random.randint(0, y_test.shape[0])
 
-plt.figure(figsize=(8, 6))
+plt.figure(figsize=(8, 8))
 
 # plt.scatter(x=y_train[:, 0], y=y_train[:, 1], color='blue')
 
